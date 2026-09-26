@@ -558,6 +558,27 @@ public final class SpatialIndexEngine implements Closeable {
         return String.format("seg-%06d", n);
     }
 
+    /**
+     * Test hook: abort abruptly without the clean-shutdown flush,
+     * simulating a process crash. Committed (WAL-synced) writes survive.
+     */
+    public void simulateCrash() {
+        closed = true;
+        maintenance.shutdownNow();
+        try {
+            if (!maintenance.awaitTermination(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("maintenance thread did not stop");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        try {
+            wal.close();
+        } catch (IOException ignored) {
+            // a real crash would not close the file either
+        }
+    }
+
     @Override
     public void close() throws IOException {
         lock.writeLock().lock();
